@@ -51,3 +51,10 @@ def main():
 	print(NN.w1)
 if __name__ == "__main__":
 	main()
+
+	
+	#a0		w00*a0+b00 + w10*a1+b10 + w20*a2+b20
+#a1		w01*a0+b01 + w11*a1+b11 + w21*a2+b21
+#a2		w02*a0+b02 + w12*a1+b11 + w21*a2+b22
+
+#a 		w0*a0+b0 + w1*a1+b1 + w2*a2+b2
