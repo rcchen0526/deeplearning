@@ -1,8 +1,6 @@
 import random
 import numpy as np
 
-
-
 class Neural:
 	def __init__(self):
 		self.input_size = 3#contain a bias
@@ -16,13 +14,13 @@ class Neural:
 
 		for i in range(self.input_size):
 			self.w0.append([random.uniform(-1, 1) for x in range(self.node)])
-
+			
 		self.change_input = [[0.0] * self.node for x in range(self.input_size)]
 		self.change_out = [0.0 for x in range(self.node)]
 
 	def run(self, input):
 		self.ai, self.ah, self.ao = [], [], 0.0
-
+		
 		for i in range(self.input_size - 1):
 			self.ai.append(input[i])
 		self.ai.append(1)
@@ -37,7 +35,6 @@ class Neural:
 		for j in range(self.node):
 			sum += self.w1[j] * self.ah[j]
 		self.ao = sigmoid(sum)
-		
 		return self.ao
 
 	def back_propagation(self, error):
@@ -54,7 +51,6 @@ class Neural:
 			delta_hidden[i]= error * dsigmoid(self.ah[i])
 
 		for i in range(self.input_size):
-
 			for j in range(self.node):
 				delta_input = self.ai[i] * delta_hidden[j]
 				self.w0[i][j] += self.lr0*self.change_input[i][j] + self.lr1*delta_input
