@@ -1,6 +1,8 @@
 import random
 import numpy as np
 
+
+
 class Neural:
 	def __init__(self):
 		self.input_size = 3#contain a bias
@@ -68,3 +70,30 @@ class Neural:
 			print(p, self.run(p))
 
 # End of Class
+def sigmoid(x):
+	return 1.0 / (1.0 + np.exp(-x))
+
+def dsigmoid(x):
+	return x * (1 - x)
+
+def main():
+	pat = (
+		[[0,0], [0]],
+		[[0,1], [1]],
+		[[1,0], [1]],
+		[[1,1], [0]],
+		)
+	
+	NN = Neural()
+	NN.train(pat)
+	test = [
+		[0,0],
+		[0,1],
+		[1,0],
+		[1,1],
+		]
+
+	NN.test(test)
+
+if __name__ == "__main__":
+	main()
