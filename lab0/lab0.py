@@ -63,7 +63,7 @@ class Neural:
 				lr_w0 += delta_input ** 2
 				if lr_w0 == 0:
 					continue
-				self.w0[i] += self.lr/np.sqrt(lr_w0) * delta_input
+				self.w0[i][j] += self.lr/np.sqrt(lr_w0) * delta_input
 				#self.w0[i][j] += self.lr0*self.change_input[i][j] + self.lr1*delta_input
 				#self.change_input[i][j]=delta_input
 
