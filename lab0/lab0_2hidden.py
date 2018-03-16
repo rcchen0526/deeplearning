@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import random
 import numpy as np
 
@@ -9,6 +10,7 @@ class Neural:
 		self.step = 2000
 		self.lr0, self.lr1 = 0.5, 1
 		self.lr = 1.5
+		self.costs = []
 		self.w = []
 		self.w0 = []
 		self.w1 = [random.uniform(-1., 1.) for x in range(self.node)]
@@ -66,7 +68,9 @@ class Neural:
 				error = p[1] - self.run(p[0])
 				self.back_propagation(error)
 				x += np.abs(error)
-			print(x)
+			#print(x)
+			self.costs.append(x)
+
 	def test(self, pattern):
 		for p in pattern:
 			print(p, self.run(p))
@@ -88,6 +92,8 @@ def main():
 	
 	NN = Neural()
 	NN.train(pat)
+	plt.plot(range(NN.step), NN.costs)
+	plt.show()
 	test = [
 		[0,0],
 		[0,1],
