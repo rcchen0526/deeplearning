@@ -1,5 +1,4 @@
 import matplotlib.pyplot as plt
-#from __future__ import print_function
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -12,17 +11,17 @@ import sys
 import math
 #import argparse
 from torch.autograd import Variable
-def conv3x3(in_planes, out_planes, stride=1):
-    return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=False)
+from logger import Logger
+import tensorflow as tf
 
 class BasicBlock(nn.Module):
 	expansion = 1
 	def __init__(self, inplanes, planes, stride=1, downsample=None):
 		super(BasicBlock, self).__init__()
-		self.conv1 = conv3x3(inplanes, planes, stride)
+		self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
 		self.bn1 = nn.BatchNorm2d(planes)
 		self.relu = nn.ReLU(inplace=True)
-		self.conv2 = conv3x3(planes, planes)
+		self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=1, padding=1, bias=False)
 		self.bn2 = nn.BatchNorm2d(planes)
 		self.downsample = downsample
 		self.stride = stride
@@ -68,11 +67,11 @@ class CNN(nn.Module):
 		self.layer2 = self._make_layer(block, 32, layers[1], stride=2)
 		self.layer3 = self._make_layer(block, 64, layers[2], stride=2)
 
-		self.linear = nn.Linear(64 * 4 * 4, 10) 
+		self.linear = nn.Linear(64 * 4 * 4, 10)
 
 	def _make_layer(self, block, planes, blocks, stride=1):
 		downsample = None
-		if stride != 1 or self.in_channels != planes * block.expansion:
+		if stride != 1 or self.in_channels:
 			downsample = nn.Sequential(
 				nn.Conv2d(self.in_channels, planes * block.expansion,
 					kernel_size=1, stride=stride, bias=False),
@@ -105,13 +104,18 @@ def resnet56():
 
 def resnet110():
 	return CNN(BasicBlock, [18,18,18])
+
 def train(epoch):
+	#global train_error
+	global train_iter
+	global logger
 	print(epoch)
 	cnn.train()
 	train_loss = 0
 	correct = 0
 	total = 0
 	for batch_idx, (inputs, targets) in enumerate(trainloader):
+		label = targets
 		inputs, targets = inputs.cuda(), targets.cuda()
 		optimizer.zero_grad()
 		inputs, targets = Variable(inputs), Variable(targets)
@@ -124,36 +128,42 @@ def train(epoch):
 		_, predicted = torch.max(outputs.data, 1)
 		total += targets.size(0)
 		correct += predicted.eq(targets.data).cpu().sum()
+		info = {'Train_loss' : loss.data[0], 'Train_Error%' : 100 - 100 * correct/total}
+		for tag, value in info.items():
+			logger.scalar_summary(tag, value, train_iter)
+		#train_error.append(100 * round(correct/total,3))
+		train_iter += 1
 	print('Train : Loss: %.3f | Acc: %.3f%% (%d/%d)' % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
+
 def test(epoch):
-	global best_acc
+	#global test_error
+	global test_iter
 	cnn.eval()
 	test_loss = 0
 	correct = 0
 	total = 0
 	for batch_idx, (inputs, targets) in enumerate(testloader):
 		inputs, targets = inputs.cuda(), targets.cuda()
-        	inputs, targets = Variable(inputs, volatile=True), Variable(targets)
-        	outputs = cnn(inputs)
+		inputs, targets = Variable(inputs, volatile=True), Variable(targets)
+		outputs = cnn(inputs)
 		loss = loss_function(outputs, targets)
 
 		test_loss += loss.data[0]
 		_, predicted = torch.max(outputs.data, 1)
 		total += targets.size(0)
 		correct += predicted.eq(targets.data).cpu().sum()
-
-		#progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)' % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
-
-	# Save checkpoint.
+		#test_error.append(round(correct/total, 3))
+		info = {'Test_Loss' : loss.data[0], 'Test_Error%' : 100 - 100 * correct/total}
+		for tag, value in info.items():
+			logger.scalar_summary(tag, value, test_iter)
+		test_iter += 1
 	print('Test : Loss: %.3f | Acc: %.3f%% (%d/%d)' % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
-
-#def main():
-	#global LR
-n = 0
-best_acc = 0
+train_iter = 0
+test_iter = 0
+train_error = []
+test_error = []
 LR = 0.1
-print('==> Preparing data..')
 transform_train = transforms.Compose([
 	transforms.RandomCrop(32, padding=4),
 	transforms.RandomHorizontalFlip(),
@@ -171,21 +181,26 @@ trainloader = torch.utils.data.DataLoader(trainset, batch_size=128, shuffle=True
 testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform_test)
 testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
 
-classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
-#global cnn 
 cnn = resnet20()
 cnn.cuda()
 cnn = torch.nn.DataParallel(cnn, device_ids=range(torch.cuda.device_count()))
 cudnn.benchmark = True
 loss_function = nn.CrossEntropyLoss()
 optimizer = optim.SGD(cnn.parameters(), lr=LR, momentum=0.9, weight_decay=0.0001)
+logger = Logger('./logs')
 def main():
 	global LR
+	global train_iter
+	global test_iter
+	global train_error
+	global test_error
 	for epoch in range(1, 165):
 		if epoch == 81 or epoch == 122:
 			LR /= 10
 		train(epoch)
 		test(epoch)	
+	torch.save(cnn, './model20')
+	
 
 if __name__ == "__main__":
 	main()
