@@ -106,7 +106,6 @@ def resnet110():
 	return CNN(BasicBlock, [18,18,18])
 
 def train(epoch):
-	#global train_error
 	global train_iter
 	global logger
 	print(epoch)
@@ -131,14 +130,14 @@ def train(epoch):
 		info = {'Train_loss' : loss.data[0], 'Train_Error%' : 100 - 100 * correct/total}
 		for tag, value in info.items():
 			logger.scalar_summary(tag, value, train_iter)
-		#train_error.append(100 * round(correct/total,3))
 		train_iter += 1
 	print('Train : Loss: %.3f | Acc: %.3f%% (%d/%d)' % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
 
 def test(epoch):
-	#global test_error
+	global best_acc
 	global test_iter
+	global logger
 	cnn.eval()
 	test_loss = 0
 	correct = 0
@@ -158,11 +157,14 @@ def test(epoch):
 		for tag, value in info.items():
 			logger.scalar_summary(tag, value, test_iter)
 		test_iter += 1
+	if best_acc > correct/total:
+		best_acc = correct/total
+		torch.save(cnn, './model20')
+
 	print('Test : Loss: %.3f | Acc: %.3f%% (%d/%d)' % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
+best_acc = 0
 train_iter = 0
 test_iter = 0
-train_error = []
-test_error = []
 LR = 0.1
 transform_train = transforms.Compose([
 	transforms.RandomCrop(32, padding=4),
@@ -190,16 +192,11 @@ optimizer = optim.SGD(cnn.parameters(), lr=LR, momentum=0.9, weight_decay=0.0001
 logger = Logger('./logs')
 def main():
 	global LR
-	global train_iter
-	global test_iter
-	global train_error
-	global test_error
 	for epoch in range(1, 165):
 		if epoch == 81 or epoch == 122:
 			LR /= 10
 		train(epoch)
 		test(epoch)	
-	torch.save(cnn, './model20')
 	
 
 if __name__ == "__main__":
