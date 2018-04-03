@@ -97,12 +97,15 @@ class CNN(nn.Module):
 		x = self.linear(x)
 		return x
 def resnet20():
+	print(20)
 	return CNN(BasicBlock, [3,3,3])
 
 def resnet56():
+	print(56)
 	return CNN(BasicBlock, [9,9,9])
 
 def resnet110():
+	print(110)
 	return CNN(BasicBlock, [18,18,18])
 
 def train(epoch):
@@ -157,12 +160,18 @@ def test(epoch):
 		for tag, value in info.items():
 			logger.scalar_summary(tag, value, test_iter)
 		test_iter += 1
-	if best_acc > correct/total:
-		best_acc = correct/total
-		torch.save(cnn, './model20')
+	if best_acc < 100. * correct/total:
+		best_acc = 100. * correct/total
+		if sys.argv[1] == '110':
+			torch.save(cnn, './model110')
+		elif sys.argv[1] == '56':
+			ctorch.save(cnn, './model56')
+		else :
+			torch.save(cnn, './model20')
+			
 
 	print('Test : Loss: %.3f | Acc: %.3f%% (%d/%d)' % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
-best_acc = 0
+best_acc = 0.
 train_iter = 0
 test_iter = 0
 LR = 0.1
@@ -182,8 +191,12 @@ trainloader = torch.utils.data.DataLoader(trainset, batch_size=128, shuffle=True
 
 testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform_test)
 testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
-
-cnn = resnet20()
+if sys.argv[1] == '110':
+	cnn = resnet110()
+elif sys.argv[1] == '56':
+	cnn = resnet56()
+else :
+	cnn = resnet20()
 cnn.cuda()
 cnn = torch.nn.DataParallel(cnn, device_ids=range(torch.cuda.device_count()))
 cudnn.benchmark = True
