@@ -74,7 +74,7 @@ class CNN(nn.Module):
 	def __init__(self, block, layers, skips):
 		#self.in_channels = 8
 		super(CNN, self).__init__()
-		self.layer0 = self._make_layer(block, 3, layers[0], 0, 0)
+		self.layer0 = self._make_layer(block, 32, layers[0], 0, 0)
 		self.layer1 = self._make_layer(block, layers[0], layers[1], 0, 0)
 		self.layer2 = self._make_layer(block, layers[1], layers[2], 0, 0)
 		self.layer3 = self._make_layer(block, layers[2], layers[3], 0, 0)
@@ -128,7 +128,7 @@ def denoising():
 	return CNN(BasicBlock, [128, 128, 128, 128, 128], [4, 4, 4, 4, 4])
 
 LR = 1
-inputs = torch.FloatTensor(3, 512, 512).normal_(0, 0.1)
+inputs = torch.FloatTensor(32, 512, 512).normal_(0, 0.1)
 targets = cv2.imread('noise_image.png')
 #np.random.shuffle(targets)
 #cv2.imwrite('zz.jpg', np.array(targets))
