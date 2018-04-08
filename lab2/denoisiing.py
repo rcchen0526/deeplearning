@@ -23,13 +23,15 @@ class BasicBlock(nn.Module):
 	expansion = 1
 	def __init__(self, inplanes, planes, stride=1, downsample = 0, skips = 0):
 		super(BasicBlock, self).__init__()
-		self.down = nn.Conv2d(inplanes, inplanes, kernel_size=3, stride=2, padding=1, bias=False)
+		self.conv = nn.Conv2d(inplanes, inplanes, kernel_size=3, stride=1, padding=1, bias=False)
+		self.conv_down = nn.Conv2d(inplanes, planes, kernel_size=3, stride=2, padding=1, bias=False)
 		self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
 		self.bn1 = nn.BatchNorm2d(planes)
 		self.bn2 = nn.BatchNorm2d(inplanes)
+		self.bn_skip = nn.BatchNorm2d(skips)
 		self.relu = nn.LeakyReLU(inplace=True)
 		self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
-		self.skip = nn.Conv2d(inplanes, skips, kernel_size=3, stride=stride, padding=1, bias=False)
+		self.skip = nn.Conv2d(inplanes, skips, kernel_size=1, stride=stride, padding=0, bias=False)
 		self.conv_skip = nn.Conv2d(inplanes+skips, inplanes, kernel_size=3, stride=stride, padding=1, bias=False)
 		self.downsample = downsample
 		self.upsample = nn.Upsample(scale_factor=2, mode='bilinear')
@@ -37,9 +39,10 @@ class BasicBlock(nn.Module):
 		
 	def forward(self, x):
 		global downs
+		print(self.downsample, self.skips)
 		if self.downsample == 0:
-			x = self.down(x)
-			x = self.conv1(x)
+			x = self.conv(x)
+			x = self.conv_down(x)
 			x = self.bn1(x)
 			x = self.relu(x)
 			x = self.conv2(x)
@@ -47,7 +50,7 @@ class BasicBlock(nn.Module):
 			x = self.relu(x)
 			downs.append(x)
 		elif self.skips != 0 :
-			res = self.skip(downs[self.downsample-1])
+			res = self.relu(self.bn_skip(self.skip(downs[self.downsample-1])))
 			x = torch.cat((x, res), 1)
 			x = self.conv_skip(x)
 			x = self.bn2(x)
@@ -123,7 +126,7 @@ def task2():
 	return CNN(BasicBlock, [128, 128, 128, 128, 128], [4, 4, 4, 4, 4])
 
 train_iter = 0
-LR = 0.01
+LR = 1
 inputs = torch.FloatTensor(32, 512, 512).normal_(0, 0.1)
 targets = cv2.imread('noise_image.png')
 #cv2.imwrite('noise.jpg', np.array(m))
