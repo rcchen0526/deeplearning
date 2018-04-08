@@ -96,11 +96,12 @@ def train(_iter):
 	train_loss = 0
 	correct = 0
 	total = 0
-
+	sigma = 1./30.
 	label = targets
 	inputs, targets = inputs.cuda(), targets.cuda()
 	optimizer.zero_grad()
-	outputs = cnn(inputs)
+	tmp = inputs.data + sigma * torch.randn(inputs.shape).cuda()
+	outputs = cnn(Variable(tmp))
 	downs = []
 	loss = loss_function(outputs, targets)
 	loss.backward()
@@ -122,7 +123,7 @@ def task2():
 	return CNN(BasicBlock, [128, 128, 128, 128, 128], [4, 4, 4, 4, 4])
 
 train_iter = 0
-LR = 0.1
+LR = 0.01
 inputs = torch.FloatTensor(32, 512, 512).normal_(0, 0.1)
 targets = cv2.imread('noise_image.png')
 #cv2.imwrite('noise.jpg', np.array(m))
