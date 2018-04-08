@@ -18,78 +18,70 @@ import downsampler as D
 import numpy as np
 import cv2 
 
+downs = []
 class BasicBlock(nn.Module):
 	expansion = 1
-	def __init__(self, inplanes, planes, stride=1, downsample=None):
+	def __init__(self, inplanes, planes, stride=1, downsample = 0, skips = 0):
 		super(BasicBlock, self).__init__()
+		self.down = nn.Conv2d(inplanes, inplanes, kernel_size=3, stride=2, padding=1, bias=False)
 		self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
 		self.bn1 = nn.BatchNorm2d(planes)
+		self.bn2 = nn.BatchNorm2d(inplanes)
 		self.relu = nn.LeakyReLU(inplace=True)
-
+		self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
+		self.skip = nn.Conv2d(inplanes, skips, kernel_size=3, stride=stride, padding=1, bias=False)
+		self.conv_skip = nn.Conv2d(inplanes+skips, inplanes, kernel_size=3, stride=stride, padding=1, bias=False)
+		self.downsample = downsample
+		self.upsample = nn.Upsample(scale_factor=2, mode='bilinear')
+		self.skips = skips
+		
 	def forward(self, x):
-		residual = x
+		global downs
+		if self.downsample == 0:
+			x = self.down(x)
+			x = self.conv1(x)
+			x = self.bn1(x)
+			x = self.relu(x)
+			x = self.conv2(x)
+			x = self.bn1(x)
+			x = self.relu(x)
+			downs.append(x)
+		elif self.skips != 0 :
+			res = self.skip(downs[self.downsample-1])
+			x = torch.cat((x, res), 1)
+			x = self.conv_skip(x)
+			x = self.bn2(x)
+			x = self.relu(x)
+			x = self.conv1(x)
+			x = self.bn1(x)
+			x = self.relu(x)
+			x = self.upsample(x)
 
-		out = self.conv1(x)
-		out = self.bn1(out)
-		out = self.relu(out)
-
-		return out
+		return x
 
 class CNN(nn.Module):
-	def __init__(self, block, layers):
+	def __init__(self, block, layers, skips):
 		#self.in_channels = 8
 		super(CNN, self).__init__()
-		self.conv_b = nn.Sequential(	# input shape (3, 32, 32)
-				nn.Conv2d(
-				in_channels=3,		# input height
-				out_channels=layers[0],	# n_filters
-				kernel_size=3,		# filter size
-				stride=1,		# filter movement/step
-				padding=1,		#
-				bias=False),				# output shape (64, 32, 32)
-			#nn.ReLU(),		# activation
-			#nn.MaxPool2d(kernel_size=2),	# output shape (64, 32, 32)
-		)
-		self.conv_e = nn.Sequential(	# input shape (3, 32, 32)
-				nn.Conv2d(
-				in_channels=layers[0],		# input height
-				out_channels=3,	# n_filters
-				kernel_size=3,		# filter size
-				stride=1,		# filter movement/step
-				padding=1,		#
-				bias=False),				# output shape (64, 32, 32)
-			#nn.ReLU(),		# activation
-			#nn.MaxPool2d(kernel_size=2),	# output shape (64, 32, 32)
-		)
-		#downsample = D.Downsampler(n_planes=self.in_channels, factor=0, kernel_type='lanczos', phase=0.5, preserve_size=True)
-		self.bn_b = nn.BatchNorm2d(layers[0])
-		self.bn_e = nn.BatchNorm2d(3)
-		self.relu = nn.LeakyReLU(inplace=True)
-		self.layer1 = self._make_layer(block, layers[0], layers[1])
-		self.layer2 = self._make_layer(block, layers[1], layers[2])
-		self.layer3 = self._make_layer(block, layers[2], layers[3])
-		self.layer4 = self._make_layer(block, layers[3], layers[4])
-		self.layer_1 = self._make_layer(block, layers[1], layers[0])
-		self.layer_2 = self._make_layer(block, layers[2], layers[1])
-		self.layer_3 = self._make_layer(block, layers[3], layers[2])
-		self.layer_4 = self._make_layer(block, layers[4], layers[3])
-	def _make_layer(self, block, in_planes, out_planes, stride=1):
+		self.layer0 = self._make_layer(block, 32, layers[0], 0, 0)
+		self.layer1 = self._make_layer(block, layers[0], layers[1], 0, 0)
+		self.layer2 = self._make_layer(block, layers[1], layers[2], 0, 0)
+		self.layer3 = self._make_layer(block, layers[2], layers[3], 0, 0)
+		self.layer4 = self._make_layer(block, layers[3], layers[4], 0, 0)
+		self.layer_0 = self._make_layer(block, layers[0], 3, 1, skips[0])
+		self.layer_1 = self._make_layer(block, layers[1], layers[0], 2, skips[1])
+		self.layer_2 = self._make_layer(block, layers[2], layers[1], 3, skips[2])
+		self.layer_3 = self._make_layer(block, layers[3], layers[2], 4, skips[3])
+		self.layer_4 = self._make_layer(block, layers[4], layers[3], 5, skips[4])
+	def _make_layer(self, block, in_planes, out_planes, down, skip):
 		layers = []
-		layers.append(block(in_planes, out_planes, stride))
+		layers.append(block(in_planes, out_planes, stride=1, downsample = down, skips = skip))
 		return nn.Sequential(*layers)
 
 	def forward(self, x):
-		#print(x.shape)
-		x = self.conv_b(x)
-		#x = downsample(x)
-		x = self.bn_b(x)
-		x = self.relu(x)
-		x = self.layer4(self.layer3(self.layer2(self.layer1(x))))
-		x = self.layer_1(self.layer_2(self.layer_3(self.layer_4(x))))
-		x = self.conv_e(x)
-		x = self.bn_e(x)
-		x = self.relu(x)
-		#Upsample
+		x = self.layer4(self.layer3(self.layer2(self.layer1(self.layer0(x)))))
+		x = self.layer_0(self.layer_1(self.layer_2(self.layer_3(self.layer_4(x)))))
+
 		return x
 
 
@@ -98,6 +90,7 @@ def train(_iter):
 	#global logger
 	global inputs
 	global targets
+	global downs
 	print(_iter)
 	cnn.train()
 	train_loss = 0
@@ -108,7 +101,7 @@ def train(_iter):
 	inputs, targets = inputs.cuda(), targets.cuda()
 	optimizer.zero_grad()
 	outputs = cnn(inputs)
-	
+	downs = []
 	loss = loss_function(outputs, targets)
 	loss.backward()
 	optimizer.step()
@@ -125,12 +118,12 @@ def train(_iter):
 	print('Train : Loss: %.3f' % (loss.data[0]))
 	
 	#return 0
-def task1():
-	return CNN(BasicBlock, [8, 16, 32, 64, 128])
+def task2():
+	return CNN(BasicBlock, [128, 128, 128, 128, 128], [4, 4, 4, 4, 4])
 
 train_iter = 0
-LR = 1
-inputs = torch.FloatTensor(3, 512, 512).normal_(0, 0.1)
+LR = 0.1
+inputs = torch.FloatTensor(32, 512, 512).normal_(0, 0.1)
 targets = cv2.imread('noise_image.png')
 #cv2.imwrite('noise.jpg', np.array(m))
 #print(np.array(m))
@@ -142,7 +135,7 @@ inputs = torch.Tensor(inputs)
 targets = torch.Tensor(targets)
 inputs, targets = Variable(inputs), Variable(targets)
 
-cnn = task1()
+cnn = task2()
 cnn.cuda()
 cnn = torch.nn.DataParallel(cnn, device_ids=range(torch.cuda.device_count()))
 cudnn.benchmark = True
@@ -151,7 +144,7 @@ optimizer = optim.Adam(cnn.parameters(), lr=LR)
 #logger = Logger('./logs')
 def main():
 	global LR
-	for _iter in range(1, 1200):
+	for _iter in range(1, 1800):
 		train(_iter)
 		#test(epoch)
 	tmp = cnn(inputs)
