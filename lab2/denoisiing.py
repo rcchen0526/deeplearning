@@ -12,11 +12,12 @@ import sys
 import math
 #import argparse
 from torch.autograd import Variable
-#from logger import Logger
+from logger import Logger
 import tensorflow as tf
 import downsampler as D
 import numpy as np
 import cv2 
+import random
 
 downs = []
 class BasicBlock(nn.Module):
@@ -39,7 +40,6 @@ class BasicBlock(nn.Module):
 		
 	def forward(self, x):
 		global downs
-		print(self.downsample, self.skips)
 		if self.downsample == 0:
 			x = self.conv(x)
 			x = self.conv_down(x)
@@ -59,6 +59,14 @@ class BasicBlock(nn.Module):
 			x = self.bn1(x)
 			x = self.relu(x)
 			x = self.upsample(x)
+		elif self.skips == 0 :
+			x = self.conv(x)
+			x = self.bn2(x)
+			x = self.relu(x)
+			x = self.conv1(x)
+			x = self.bn1(x)
+			x = self.relu(x)
+			x = self.upsample(x)
 
 		return x
 
@@ -66,7 +74,7 @@ class CNN(nn.Module):
 	def __init__(self, block, layers, skips):
 		#self.in_channels = 8
 		super(CNN, self).__init__()
-		self.layer0 = self._make_layer(block, 32, layers[0], 0, 0)
+		self.layer0 = self._make_layer(block, 3, layers[0], 0, 0)
 		self.layer1 = self._make_layer(block, layers[0], layers[1], 0, 0)
 		self.layer2 = self._make_layer(block, layers[1], layers[2], 0, 0)
 		self.layer3 = self._make_layer(block, layers[2], layers[3], 0, 0)
@@ -82,56 +90,48 @@ class CNN(nn.Module):
 		return nn.Sequential(*layers)
 
 	def forward(self, x):
+		global downs
 		x = self.layer4(self.layer3(self.layer2(self.layer1(self.layer0(x)))))
 		x = self.layer_0(self.layer_1(self.layer_2(self.layer_3(self.layer_4(x)))))
-
+		downs = []
 		return x
 
 
-def train(_iter):
+def train():
 	#global train_iter
 	#global logger
 	global inputs
 	global targets
-	global downs
-	print(_iter)
 	cnn.train()
-	train_loss = 0
-	correct = 0
-	total = 0
 	sigma = 1./30.
 	label = targets
-	inputs, targets = inputs.cuda(), targets.cuda()
-	optimizer.zero_grad()
-	tmp = inputs.data + sigma * torch.randn(inputs.shape).cuda()
-	outputs = cnn(Variable(tmp))
-	downs = []
-	loss = loss_function(outputs, targets)
-	loss.backward()
-	optimizer.step()
+	for _iter in range(1, 1800):
+		inputs, targets = inputs.cuda(), targets.cuda()
+		optimizer.zero_grad()
+		tmp = inputs.data + sigma * torch.randn(inputs.shape).cuda()
+		outputs = cnn(Variable(tmp))
+		temp = targets.data + sigma * torch.randn(targets.shape).cuda()
+		loss = loss_function(outputs, targets)
+		#loss = torch.sum( (outputs-targets)**2 )
+		loss.backward()
+		optimizer.step()
+		print(_iter)
+		print('Train : Loss: %.3f' % (loss.data[0]))
+		#info = {'Train_loss' : loss.data[0]}
+		#for tag, value in info.items():
+			#logger.scalar_summary(tag, value, _iter)
 
+def task():
+	return CNN(BasicBlock, [8, 16, 32, 64, 128], [0, 0, 0, 4, 4])
 
-	#train_loss += loss.data[0]
-	#_, predicted = torch.max(outputs.data, 1)
-	#total += targets.size(0)
-	#correct += predicted.eq(targets.data).cpu().sum()
-	#info = {'Train_loss' : loss.data[0], 'Train_Error%' : 100 - 100 * correct/total}
-	#for tag, value in info.items():
-	#	logger.scalar_summary(tag, value, train_iter)
-	#train_iter += 1
-	print('Train : Loss: %.3f' % (loss.data[0]))
-	
-	#return 0
-def task2():
+def denoising():
 	return CNN(BasicBlock, [128, 128, 128, 128, 128], [4, 4, 4, 4, 4])
 
-train_iter = 0
 LR = 1
-inputs = torch.FloatTensor(32, 512, 512).normal_(0, 0.1)
+inputs = torch.FloatTensor(3, 512, 512).normal_(0, 0.1)
 targets = cv2.imread('noise_image.png')
-#cv2.imwrite('noise.jpg', np.array(m))
-#print(np.array(m))
-
+#np.random.shuffle(targets)
+#cv2.imwrite('zz.jpg', np.array(targets))
 targets = np.transpose(targets, (2, 0, 1))
 inputs = np.expand_dims(inputs, axis=0)
 targets = np.expand_dims(targets, axis=0)
@@ -139,7 +139,7 @@ inputs = torch.Tensor(inputs)
 targets = torch.Tensor(targets)
 inputs, targets = Variable(inputs), Variable(targets)
 
-cnn = task2()
+cnn = denoising()
 cnn.cuda()
 cnn = torch.nn.DataParallel(cnn, device_ids=range(torch.cuda.device_count()))
 cudnn.benchmark = True
@@ -148,9 +148,7 @@ optimizer = optim.Adam(cnn.parameters(), lr=LR)
 #logger = Logger('./logs')
 def main():
 	global LR
-	for _iter in range(1, 1800):
-		train(_iter)
-		#test(epoch)
+	train()
 	tmp = cnn(inputs)
 	
 	img = tmp[0].data.cpu().numpy()
