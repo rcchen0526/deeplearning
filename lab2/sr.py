@@ -18,6 +18,7 @@ import downsampler as D
 import numpy as np
 import cv2 
 import random
+from skimage.measure import compare_psnr
 
 downs = []
 class BasicBlock(nn.Module):
@@ -30,6 +31,7 @@ class BasicBlock(nn.Module):
 		self.bn1 = nn.BatchNorm2d(planes)
 		self.bn2 = nn.BatchNorm2d(inplanes)
 		self.bn_skip = nn.BatchNorm2d(skips)
+		self.cat = nn.BatchNorm2d(inplanes+skips)
 		self.relu = nn.LeakyReLU(inplace=True)
 		self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
 		self.skip = nn.Conv2d(inplanes, skips, kernel_size=1, stride=stride, padding=0, bias=False)
@@ -52,6 +54,7 @@ class BasicBlock(nn.Module):
 		elif self.skips != 0 :
 			res = self.relu(self.bn_skip(self.skip(downs[self.downsample-1])))
 			x = torch.cat((x, res), 1)
+			x = self.cat(x)
 			x = self.conv_skip(x)
 			x = self.bn2(x)
 			x = self.relu(x)
@@ -105,7 +108,8 @@ def train():
 	cnn.train()
 	sigma = 1./30.
 	label = targets
-	for _iter in range(1, 2000):
+	for _iter in range(1, 2001):
+		print('Step %d :' % (_iter) )
 		inputs, targets = inputs.cuda(), targets.cuda()
 		optimizer.zero_grad()
 		tmp = inputs.data + sigma * torch.randn(inputs.shape).cuda()
@@ -116,8 +120,8 @@ def train():
 		#loss = torch.sum( (outputs-targets)**2 )
 		loss.backward()
 		optimizer.step()
-		print(_iter)
 		print('Train : Loss: %.3f' % (loss.data[0]))
+
 		#info = {'Train_loss' : loss.data[0]}
 		#for tag, value in info.items():
 			#logger.scalar_summary(tag, value, _iter)
@@ -131,7 +135,7 @@ def denoising():
 def SR():
 	return CNN(BasicBlock, [128, 128, 128, 128, 128], [4, 4, 4, 4, 4])
 
-Down = D.Downsampler(n_planes = 3, factor = 4, kernel_type = 'lanczos', kernel_width=4, support = True, phase=0, preserve_size=True).type(torch.cuda.FloatTensor)
+Down = D.Downsampler(n_planes = 3, factor = 4, kernel_type = 'lanczos2', support = True, phase=0.5, preserve_size=True).type(torch.cuda.FloatTensor)
 
 LR = 0.1
 targets = cv2.imread('LowResolution.png')
