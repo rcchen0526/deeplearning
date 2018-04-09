@@ -4,11 +4,12 @@ import numpy as np
 import torch
 import cv2 
 from skimage.measure import compare_psnr
+import sys
 
 #m = torch.FloatTensor(1, 3, 512, 512).normal_(0, 0.1)
-#tmp = m[0]
+#tmp = m[0]*256+128
 #img = np.transpose(tmp, (1, 2, 0))
 #cv2.imwrite('noise.jpg', np.array(img))
-img1 = cv2.imread('noise_GT.png')
-img2 = cv2.imread('output.jpg')
+img1 = cv2.imread(sys.argv[1])
+img2 = cv2.imread(sys.argv[2])
 print( compare_psnr(np.array(img1), np.array(img2)) )
