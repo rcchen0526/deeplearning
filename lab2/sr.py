@@ -84,7 +84,6 @@ class CNN(nn.Module):
 		self.layer_2 = self._make_layer(block, layers[2], layers[1], 3, skips[2])
 		self.layer_3 = self._make_layer(block, layers[3], layers[2], 4, skips[3])
 		self.layer_4 = self._make_layer(block, layers[4], layers[3], 5, skips[4])
-		self.downsample = D.Downsampler(n_planes = 3, factor = 4, kernel_type = 'lanczos', kernel_width=4, support = True, phase=0, preserve_size=False)
 	def _make_layer(self, block, in_planes, out_planes, down, skip):
 		layers = []
 		layers.append(block(in_planes, out_planes, stride=1, downsample = down, skips = skip))
@@ -95,7 +94,6 @@ class CNN(nn.Module):
 		x = self.layer4(self.layer3(self.layer2(self.layer1(self.layer0(x)))))
 		x = self.layer_0(self.layer_1(self.layer_2(self.layer_3(self.layer_4(x)))))
 		downs = []
-		x = self.downsample(x)
 		return x
 
 
@@ -112,6 +110,7 @@ def train():
 		optimizer.zero_grad()
 		tmp = inputs.data + sigma * torch.randn(inputs.shape).cuda()
 		outputs = cnn(Variable(tmp))
+		outputs = Down(outputs)
 		temp = targets.data + sigma * torch.randn(targets.shape).cuda()		#image+noise
 		loss = loss_function(outputs, targets)
 		#loss = torch.sum( (outputs-targets)**2 )
@@ -132,12 +131,16 @@ def denoising():
 def SR():
 	return CNN(BasicBlock, [128, 128, 128, 128, 128], [4, 4, 4, 4, 4])
 
+Down = D.Downsampler(n_planes = 3, factor = 4, kernel_type = 'lanczos', kernel_width=4, support = True, phase=0, preserve_size=True).type(torch.cuda.FloatTensor)
+
 LR = 1
-inputs = torch.FloatTensor(32, 384, 576).normal_(0, 0.1)
+targets = cv2.imread('LowResolution.png')
+W, H, C = targets.shape
+inputs = torch.FloatTensor(32, 4*W, 4*H).normal_(0, 0.1)
 #targets= torch.FloatTensor(3, 2048, 2048).normal_(0, 1)
 #inputs[0] *= 256
 #inputs[0] += 128
-targets = cv2.imread('LowResolution.png')
+
 #np.random.shuffle(targets)			#shuffle
 #cv2.imwrite('zz.jpg', np.array(targets))
 targets = np.transpose(targets, (2, 0, 1))
@@ -156,6 +159,7 @@ optimizer = optim.Adam(cnn.parameters(), lr=LR)
 #logger = Logger('./logs')
 def main():
 	global LR
+	global _train
 	train()
 	tmp = cnn(inputs)
 	
