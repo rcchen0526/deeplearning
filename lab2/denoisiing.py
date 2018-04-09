@@ -110,7 +110,7 @@ def train():
 		optimizer.zero_grad()
 		tmp = inputs.data + sigma * torch.randn(inputs.shape).cuda()
 		outputs = cnn(Variable(tmp))
-		temp = targets.data + sigma * torch.randn(targets.shape).cuda()
+		#temp = targets.data + sigma * torch.randn(targets.shape).cuda()
 		loss = loss_function(outputs, targets)
 		#loss = torch.sum( (outputs-targets)**2 )
 		loss.backward()
@@ -128,8 +128,9 @@ def denoising():
 	return CNN(BasicBlock, [128, 128, 128, 128, 128], [4, 4, 4, 4, 4])
 
 LR = 1
-inputs = torch.FloatTensor(32, 512, 512).normal_(0, 0.1)
 targets = cv2.imread('noise_image.png')
+W, H, C = targets.shape
+inputs = torch.FloatTensor(32, W, H).normal_(0, 0.1)
 #np.random.shuffle(targets)
 #cv2.imwrite('zz.jpg', np.array(targets))
 targets = np.transpose(targets, (2, 0, 1))
@@ -153,7 +154,7 @@ def main():
 	
 	img = tmp[0].data.cpu().numpy()
 	img = np.transpose(img, (1, 2, 0))
-	cv2.imwrite('output.jpg', np.array(img))
+	cv2.imwrite('denoising.jpg', np.array(img))
 	
 	
 
