@@ -133,7 +133,7 @@ def SR():
 
 Down = D.Downsampler(n_planes = 3, factor = 4, kernel_type = 'lanczos', kernel_width=4, support = True, phase=0, preserve_size=True).type(torch.cuda.FloatTensor)
 
-LR = 1
+LR = 0.1
 targets = cv2.imread('LowResolution.png')
 W, H, C = targets.shape
 inputs = torch.FloatTensor(32, 4*W, 4*H).normal_(0, 0.1)
