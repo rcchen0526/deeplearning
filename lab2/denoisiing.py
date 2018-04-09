@@ -30,6 +30,7 @@ class BasicBlock(nn.Module):
 		self.bn1 = nn.BatchNorm2d(planes)
 		self.bn2 = nn.BatchNorm2d(inplanes)
 		self.bn_skip = nn.BatchNorm2d(skips)
+		self.cat = nn.BatchNorm2d(inplanes+skips)
 		self.relu = nn.LeakyReLU(inplace=True)
 		self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
 		self.skip = nn.Conv2d(inplanes, skips, kernel_size=1, stride=stride, padding=0, bias=False)
@@ -52,6 +53,7 @@ class BasicBlock(nn.Module):
 		elif self.skips != 0 :
 			res = self.relu(self.bn_skip(self.skip(downs[self.downsample-1])))
 			x = torch.cat((x, res), 1)
+			x = self.cat(x)
 			x = self.conv_skip(x)
 			x = self.bn2(x)
 			x = self.relu(x)
@@ -105,7 +107,7 @@ def train():
 	cnn.train()
 	sigma = 1./30.
 	label = targets
-	for _iter in range(1, 1800):
+	for _iter in range(1, 1801):
 		inputs, targets = inputs.cuda(), targets.cuda()
 		optimizer.zero_grad()
 		tmp = inputs.data + sigma * torch.randn(inputs.shape).cuda()
