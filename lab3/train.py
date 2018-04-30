@@ -11,7 +11,7 @@ import numpy as np
 import time
 import os
 from six.moves import cPickle
-from show_att_tell import *
+from model import *
 from dataloader import *
 import argparse
 
