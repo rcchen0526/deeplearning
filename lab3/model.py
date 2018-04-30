@@ -89,7 +89,7 @@ class ShowAttendTellCore(nn.Module):
     def __init__(self, opt):
         super(ShowAttendTellCore, self).__init__()
         self.input_encoding_size = 512
-        self.rnn_type = 'lstm'
+        self.rnn_type = 'LSTM'
         self.rnn_size = 512
         self.num_layers = 1
         self.drop_prob_lm = 0.5
@@ -140,7 +140,7 @@ class OldModel(CaptionModel):
         super(OldModel, self).__init__()
         self.vocab_size = opt.vocab_size
         self.input_encoding_size = 512
-        self.rnn_type = 'lstm'
+        self.rnn_type = 'LSTM'
         self.rnn_size = 512
         self.num_layers = 1
         self.drop_prob_lm = 0.5
@@ -165,7 +165,7 @@ class OldModel(CaptionModel):
 
     def init_hidden(self, fc_feats):
         image_map = self.linear(fc_feats).view(-1, self.num_layers, self.rnn_size).transpose(0, 1)
-        if self.rnn_type == 'lstm':
+        if self.rnn_type == 'LSTM':
             return (image_map, image_map)
         else:
             return image_map
