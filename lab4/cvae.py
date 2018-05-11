@@ -40,9 +40,8 @@ test_loader = torch.utils.data.DataLoader(
 
 
 class VAE(nn.Module):
-    def __init__(self, batch_size):
+    def __init__(self):
         super(VAE, self).__init__()
-        self.batch_size = batch_size
         self.fc1 = nn.Sequential(nn.Linear(784, 400), nn.ReLU())
         self.fc21 = nn.Linear(400, 20)
         self.fc22 = nn.Linear(400, 20)
@@ -83,6 +82,7 @@ class VAE(nn.Module):
             return mu
 
     def decode(self, z, c):
+        self.batch_size = c.shape[0]
         onehot = torch.zeros([self.batch_size, 10], dtype=torch.float)
         for i in range(self.batch_size):
             for j in range(10):
@@ -95,13 +95,14 @@ class VAE(nn.Module):
         return h3.view(-1, 784)
 
     def forward(self, x, c):
+        self.batch_size = c.shape[0]
         mu, logvar = self.encode(x.view(-1, 784), c)
         z = self.reparameterize(mu, logvar)
         return self.decode(z, c), mu, logvar
 
 
 #model = VAE().to(device)
-model = VAE(batch_size = args.batch_size).cuda()
+model = VAE().cuda()
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
 
@@ -131,14 +132,14 @@ def train(epoch):
         loss = loss_function(recon_batch, data, mu, logvar)
         loss.backward()
         #train_loss += loss.item()
-        train_loss += loss.data[0]
+        train_loss += loss.item()
         optimizer.step()
         if batch_idx % args.log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(data), len(train_loader.dataset),
                 100. * batch_idx / len(train_loader),
                 #loss.item() / len(data)))
-                loss.data[0] / len(data)))
+                loss.item() / len(data)))
 
     print('====> Epoch: {} Average loss: {:.4f}'.format(
           epoch, train_loss / len(train_loader.dataset)))
@@ -148,15 +149,15 @@ def test(epoch):
     model.eval()
     test_loss = 0
     with torch.no_grad():
-        for i, (data, _) in enumerate(test_loader):
+        for i, (data, label) in enumerate(test_loader):
             #data = data.to(device)
-            data = data.cuda()
-            data = Variable(data)
-            recon_batch, mu, logvar = model(data)
+            label, data = label.cuda(), data.cuda()
+            label, data = Variable(label), Variable(data)
+            recon_batch, mu, logvar = model(data, label)
             #test_loss += loss_function(recon_batch, data, mu, logvar).item()
-            test_loss += loss_function(recon_batch, data, mu, logvar).data[0]
+            test_loss += loss_function(recon_batch, data, mu, logvar).item()
             if i == 0:
-                n = min(data.size(0), 8)
+                n = min(data.size(0), 10)
                 comparison = torch.cat([data[:n],
                                       recon_batch.view(args.batch_size, 1, 28, 28)[:n]])
                 save_image(comparison.cpu(),
@@ -170,7 +171,8 @@ for epoch in range(1, args.epochs + 1):
     train(epoch)
     test(epoch)
     with torch.no_grad():
-        sample = torch.randn(64, 20).cuda()
-        sample = model.decode(sample).cpu()
-        save_image(sample.view(64, 1, 28, 28),
-                   'results/sample_' + str(epoch) + '.png')
+        sample = torch.randn(100, 20).cuda()
+        finish = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] * 10
+        sample = model.decode(sample, torch.tensor(finish, ).cuda()).cpu()
+        save_image(sample.view(100, 1, 28, 28),
+                   'results/sample_' + str(epoch) + '.png', nrow=10)
