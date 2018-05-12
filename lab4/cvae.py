@@ -9,6 +9,7 @@ from torchvision import datasets, transforms
 from torchvision.utils import save_image
 from torch.autograd import Variable
 import numpy as np
+from logger import Logger
 
 parser = argparse.ArgumentParser(description='VAE MNIST Example')
 parser.add_argument('--batch_size', type=int, default=128, metavar='N',
@@ -47,13 +48,16 @@ class VAE(nn.Module):
         self.fc22 = nn.Linear(400, 20)
         self.fc3 = nn.Sequential(nn.Linear(30, 392), nn.ReLU())
         self.conv1 = nn.Sequential(nn.Conv2d(11, 3, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(3),
             nn.ReLU(inplace=True),
             nn.Conv2d(3, 1, kernel_size=3, stride=1, padding=1),
             nn.ReLU(inplace=True))
         self.conv2 = nn.Sequential(nn.Conv2d(2, 11, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(11),
             nn.ReLU(inplace=True),
             nn.Upsample(scale_factor=2, mode='nearest'),
             nn.Conv2d(11, 3, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(3),
             nn.ReLU(inplace=True),
             nn.Conv2d(3, 1, kernel_size=3, stride=1, padding=1),
             nn.Sigmoid())
@@ -68,18 +72,16 @@ class VAE(nn.Module):
                         onehot[i][j][k] = 1.
         onehot = onehot.view(self.batch_size, 10, 28, 28).cuda()
         x = torch.cat((x, onehot), 1)
+        x = Variable(x)
         x = self.conv1(x)
         #print(x.shape)
         h1 = self.fc1(x.view(-1, 784))
         return self.fc21(h1), self.fc22(h1)
 
     def reparameterize(self, mu, logvar):
-        if self.training:
-            std = torch.exp(0.5*logvar)
-            eps = Variable(torch.from_numpy(np.random.normal(0, 1, size=std.size())).float(), requires_grad=False).cuda()
-            return eps.mul(std).add_(mu)
-        else:
-            return mu
+        std = torch.exp(0.5*logvar)
+        eps = torch.randn_like(std)
+        return eps.mul(std).add_(mu)
 
     def decode(self, z, c):
         self.batch_size = c.shape[0]
@@ -88,6 +90,7 @@ class VAE(nn.Module):
             for j in range(10):
                 if j == c[i]:
                     onehot[i][j] = 1.
+        onehot = Variable(onehot)
         z = torch.cat((z, onehot.cuda()), 1)
         h3 = self.fc3(z)
         h3 = h3.view(self.batch_size, 2, 14, 14).cuda()
@@ -108,19 +111,20 @@ optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
 # Reconstruction + KL divergence losses summed over all elements and batch
 def loss_function(recon_x, x, mu, logvar):
-    BCE = F.binary_cross_entropy(recon_x, x.view(-1, 784), size_average=False)
+    BCE = F.mse_loss(recon_x, x.view(-1, 784), size_average=False)
 
     # see Appendix B from VAE paper:
     # Kingma and Welling. Auto-Encoding Variational Bayes. ICLR, 2014
     # https://arxiv.org/abs/1312.6114
     # 0.5 * sum(1 + log(sigma^2) - mu^2 - sigma^2)
     #KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-    KLD = -0.5 * torch.sum(1 + torch.log(logvar.pow(2)) - mu.pow(2) - logvar.pow(2))
+    KLD = 0.5 * torch.sum(mu.pow(2)+ logvar.pow(2) - torch.log(logvar.pow(2)) - 1)
 
     return BCE + KLD
 
-
+best_acc = 1000.
 def train(epoch):
+    global best_acc
     model.train()
     train_loss = 0
     for batch_idx, (data, label) in enumerate(train_loader):
@@ -140,9 +144,15 @@ def train(epoch):
                 100. * batch_idx / len(train_loader),
                 #loss.item() / len(data)))
                 loss.item() / len(data)))
+            if best_acc > loss.item() / len(data):
+                best_acc = loss.item() / len(data)
+                torch.save(model, './model_vae')
 
     print('====> Epoch: {} Average loss: {:.4f}'.format(
           epoch, train_loss / len(train_loader.dataset)))
+    info = {'Train_loss' : train_loss / len(train_loader.dataset)}
+    for tag, value in info.items():
+        logger.scalar_summary(tag, value, epoch)
 
 
 def test(epoch):
@@ -165,7 +175,7 @@ def test(epoch):
 
     test_loss /= len(test_loader.dataset)
     print('====> Test set loss: {:.4f}'.format(test_loss))
-
+logger = Logger('./logs_vae')
 
 for epoch in range(1, args.epochs + 1):
     train(epoch)
