@@ -116,17 +116,17 @@ class log_gaussian:
     return logli.sum(1).mean().mul(-1)
 
 d = {'2' : 0,'5' : 1,  '3' : 2, '1' : 3, '4' : 4, '9' : 5, '7' : 6, '6' : 7, '8' : 8, '0' : 9}
-dis_c = torch.FloatTensor(10, 10).cuda()
-con_c = torch.FloatTensor(10, 2).cuda()
-noise = torch.FloatTensor(10, 62).cuda()
-fix_noise = torch.Tensor(10, 62).uniform_(-1, 1)
+dis_c = torch.FloatTensor(50, 10).cuda()
+con_c = torch.FloatTensor(50, 2).cuda()
+noise = torch.FloatTensor(50, 62).cuda()
+fix_noise = torch.Tensor(50, 62).uniform_(-1, 1)
 noise.data.copy_(fix_noise)
 
-idx = np.arange(10).repeat(1)
-one_hot = np.zeros((10, 10))
-one_hot[range(10), idx] = 1
+idx = np.arange(10).repeat(5)
+one_hot = np.zeros((50, 10))
+one_hot[range(50), idx] = 1
 
-c = np.linspace(-1, 1, 10).reshape(1, -1)
+c = np.linspace(-1, 1, 50).reshape(1, -1)
 c = np.repeat(c, 1, 0).reshape(-1, 1)
 c1 = np.hstack([c, np.zeros_like(c)])
 
@@ -139,6 +139,9 @@ print('Generating...')
 g = torch.load('model_infogan_g')
 g.eval()
 x_save = g(z)
-x_save = x_save[d[sys.argv[1]]]
-save_image(x_save.data, 'Img_infogan_' + str(sys.argv[1]) + '.png', nrow=10)
+demo = torch.zeros(5, 1, 28, 28).cuda()
+for i in range(5):
+  demo[i][0] += x_save[5*d[sys.argv[1]]+i][0]
+#x_save = x_save[d[sys.argv[1]]]
+save_image(demo.data, 'Img_infogan_' + str(sys.argv[1]) + '.png', nrow=10)
 print('Finish!')
